@@ -3,6 +3,7 @@ import multiprocessing
 from os import system
 from os import remove
 from config import _settings
+from sys import platform
 
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
@@ -11,22 +12,28 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import NoSuchElementException as find_exc
-from screeninfo import get_monitors
 
-width, height = get_monitors()[0].width, get_monitors()[0].height
- 
-BROWSER = webdriver.Chrome(executable_path=_settings.path_to_chromedriver)
-BROWSER.set_window_size(width, height)
+
+options = webdriver.ChromeOptions()
+options.add_experimental_option('excludeSwitches', ['enable-logging'])
+
+BROWSER = webdriver.Chrome(executable_path=_settings.path_to_chromedriver, options=options)
+BROWSER.maximize_window()
 wait = WebDriverWait(BROWSER, 10)
 
 acc_tab = {'Instagram': '10', 'VK': '2', 'Discord': '22'}
 
-system('clear')
+if 'win' in platform:
+	system('cls')
+else:
+	system('clear')
 
 def auth():
 	BROWSER.get("https://lolz.guru/login") 
-	wait.until(EC.title_contains('Log in'))
-	
+	try:
+		wait.until(EC.title_contains('Вход'))
+	except Exception:
+		wait.until(EC.title_contains('Log in'))
 	login = BROWSER.find_element_by_id('ctrl_pageLogin_login')
 	login.send_keys(_settings.login)
 
@@ -60,10 +67,9 @@ def set_tabs():
 
 
 def set_delay():
-	delay = int(input("Enter delay for account preloading in integer min(60+ for autoregs): ")) * 60
+	delay = int(input("Enter delay for account preloading in integer min: ")) * 60
 	
 	if delay >= 0 and delay <=1440:
-		print(f'Waiting {delay}s')
 		return delay
 	else:
 		raise Exception("Delay number eror")
@@ -157,19 +163,19 @@ def massload_optimization(n, lim, path_to_accs):
 		accs_list.append('')
 	
 	if lim*n >= len(accs_list):
-		lim = int(len(accs_list)/n)
+		lim = int(len(accs_list) / n)
 		mod = 0
 	else:
-		mod = len(accs_list)-lim*n
+		mod = len(accs_list) - lim * n
 	
 	remove(path_to_accs)
 	accs_txt = open('accs.txt', 'w')
 	
-	for i in range(len(accs_list)-mod, len(accs_list)):
+	for i in range(len(accs_list) - mod, len(accs_list)):
 		accs_txt.write(accs_list[i]+'\n')
 		
-	for optimize_number in range(lim, lim*n+lim, lim):
-		optimize_list.append('\n'.join([accs_list[line_index] for line_index in range(optimize_number-lim, optimize_number)]))
+	for optimize_number in range(lim, lim * n + lim, lim):
+		optimize_list.append('\n'.join([accs_list[line_index] for line_index in range(optimize_number - lim, optimize_number)]))
 
 	return optimize_list if len(optimize_list) == n else optimize_list[0:n], mod
 	
@@ -194,49 +200,52 @@ def massload_results():
 	good = BROWSER.find_element_by_xpath('//*[@id="content"]/div/div/div/div/div[2]/div[1]/div/div[3]/div[1]')
 	bad = BROWSER.find_element_by_xpath('//*[@id="content"]/div/div/div/div/div[2]/div[1]/div/div[4]/div[1]')
 	
-	return int(good.text)+int(bad.text), int(good.text), int(bad.text)
+	return int(good.text) + int(bad.text), int(good.text), int(bad.text)
 	
 	
 async def main():
 	auth()
 	number_of_tabs = set_tabs()
 	limit = set_load_limit()
-	await asyncio.sleep(set_delay())
 	total, good, bad = 0, 0, 0
-	
+	discount_chekbox_counter = 0
+	delay = set_delay()
 	BROWSER.maximize_window()
 	while True:
+		await asyncio.sleep(delay)
+		print(f'Waiting {delay}s')
 		for n in range(number_of_tabs):
 			if n == 0:
 				data, mod = massload_optimization(number_of_tabs, limit, _settings.path_to_accs)
 			BROWSER.switch_to.new_window('tab')
 			fill_massload_form()
 			set_discount_checkbox()
-			if n == 0:
+			if n == 0 and discount_chekbox_counter < 1:
 				set_massload_start_chekbox()
+				discount_chekbox_counter += 1
 			set_accounts_origin()
 			fill_accs_form(data[n])
 			start_massload()
 		while True:
 			await asyncio.sleep(5)
-			try:			
-				for _ in range(number_of_tabs):
+			try:	
+				for n in list(range(1, number_of_tabs + 1))[::-1]:
+					BROWSER.switch_to.window(BROWSER.window_handles[n])
 					total += massload_results()[0]
 					good += massload_results()[1]
 					bad += massload_results()[2]
 					
-					BROWSER.switch_to.window(BROWSER.window_handles[-1])
-					BROWSER.find_element_by_tag_name('body').send_keys(Keys.COMMAND + 'W')
-					
-				print(f'Total: {total}; Good: {good}; Bad: {bad}')
+					BROWSER.close()
+					await asyncio.sleep(3)
+				BROWSER.switch_to.window(BROWSER.window_handles[0])
 				
 				break
-			except Exception:
-				print('not found')
+			except Exception as e:
+				print(e)
 				
 			
 		if mod < number_of_tabs:
-			BROWSER.close()
+			print(f'Total: {total}; Good: {good}; Bad: {bad}')
 			break
 		
 		

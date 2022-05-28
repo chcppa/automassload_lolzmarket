@@ -1,2 +1,1 @@
 selenium==4.0.0a1
-screeninfo==0.8
